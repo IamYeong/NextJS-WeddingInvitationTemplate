@@ -1,0 +1,10 @@
+node_modules
+.next
+.env*
+!.env.example
+.tirani
+public/uploads
+*.tsbuildinfo
+artifacts/playwright-results/
+artifacts/screenshots/
+playwright-report/

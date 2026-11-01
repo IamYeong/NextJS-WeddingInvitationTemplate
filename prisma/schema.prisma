@@ -1,0 +1,232 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+enum Role {
+  USER
+  ADMIN
+}
+enum InvitationStatus {
+  DRAFT
+  PUBLISHED
+  UNPUBLISHED
+  EXPIRED
+}
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  nickname String
+  role Role @default(USER)
+  passwordHash String?
+  emailVerifiedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  identities Identity[]
+  invitations Invitation[]
+  orders Order[]
+  billingKeys BillingKey[]
+}
+model Identity {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId], references:[id], onDelete: Cascade)
+  provider String
+  providerUserId String
+  @@unique([provider, providerUserId])
+}
+model Template {
+  id String @id @default(cuid())
+  slug String @unique
+  name String
+  description String
+  thumbnailUrl String?
+  price Int
+  published Boolean @default(false)
+  versions TemplateVersion[]
+  createdAt DateTime @default(now())
+}
+model TemplateVersion {
+  id String @id @default(cuid())
+  templateId String
+  template Template @relation(fields:[templateId], references:[id])
+  version Int
+  rendererKey String
+  html String?
+  css String?
+  fields Json
+  createdAt DateTime @default(now())
+  invitations Invitation[]
+  @@unique([templateId, version])
+}
+model Invitation {
+  id String @id @default(cuid())
+  ownerId String
+  owner User @relation(fields:[ownerId], references:[id])
+  templateVersionId String
+  templateVersion TemplateVersion @relation(fields:[templateVersionId], references:[id])
+  slug String @unique
+  status InvitationStatus @default(DRAFT)
+  data Json
+  publishedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  assets InvitationAsset[]
+  guestbook GuestbookEntry[]
+  orders Order[]
+}
+model InvitationAsset {
+  id String @id @default(cuid())
+  invitationId String
+  invitation Invitation @relation(fields:[invitationId], references:[id], onDelete: Cascade)
+  fieldKey String
+  originalUrl String
+  displayUrl String
+  position Int @default(0)
+  createdAt DateTime @default(now())
+  @@index([invitationId, fieldKey, position])
+}
+model GuestbookEntry {
+  id String @id @default(cuid())
+  invitationId String
+  invitation Invitation @relation(fields:[invitationId], references:[id], onDelete: Cascade)
+  author String
+  message String
+  hidden Boolean @default(false)
+  createdAt DateTime @default(now())
+  @@index([invitationId, createdAt])
+}
+model Order {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId], references:[id])
+  invitationId String
+  invitation Invitation @relation(fields:[invitationId], references:[id])
+  amount Int
+  currency String @default("KRW")
+  status OrderStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  payments Payment[]
+}
+model Payment {
+  id String @id @default(cuid())
+  orderId String
+  order Order @relation(fields:[orderId], references:[id])
+  provider String
+  providerPaymentId String? @unique
+  amount Int
+  status PaymentStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  events PaymentEvent[]
+  refunds Refund[]
+}
+model PaymentEvent {
+  id String @id @default(cuid())
+  paymentId String
+  payment Payment @relation(fields:[paymentId], references:[id])
+  providerEventId String? @unique
+  type String
+  payload Json
+  createdAt DateTime @default(now())
+}
+model Refund {
+  id String @id @default(cuid())
+  paymentId String
+  payment Payment @relation(fields:[paymentId], references:[id])
+  providerRefundId String? @unique
+  amount Int
+  reason String
+  status String
+  createdAt DateTime @default(now())
+}
+model BillingKey {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId], references:[id])
+  provider String
+  ciphertext Bytes
+  nonce Bytes
+  authTag Bytes
+  keyVersion String
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+}
+model EmailTemplate {
+  id String @id @default(cuid())
+  key String @unique
+  subject String
+  html String
+  updatedAt DateTime @updatedAt
+}
+
+// Versioned policy and append-only point ledger; runtime adapter is still pending.
+model AffiliatePolicy {
+  id String @id @default(cuid())
+  version Int @unique
+  discountPercent Int
+  rewardPercent Int
+  active Boolean @default(false)
+  createdAt DateTime @default(now())
+}
+model ReferralAttribution {
+  id String @id @default(cuid())
+  ownerId String
+  buyerId String
+  orderId String @unique
+  policyId String
+  buyerEmail String
+  cashPaid Int
+  discount Int
+  reward Int
+  createdAt DateTime @default(now())
+  @@index([ownerId, createdAt])
+}
+model PointLedgerEntry {
+  id String @id @default(cuid())
+  userId String
+  orderId String?
+  redemptionId String?
+  kind String
+  amount Int
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+}
+model GiftRedemption {
+  id String @id @default(cuid())
+  userId String
+  points Int
+  provider String
+  status String
+  createdAt DateTime @default(now())
+}
+model AppNotification {
+  id String @id @default(cuid())
+  userId String
+  message String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+}
+model ActivityLog {
+  id String @id @default(cuid())
+  userId String?
+  name String
+  metadata Json
+  createdAt DateTime @default(now())
+}

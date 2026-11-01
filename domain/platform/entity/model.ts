@@ -1,0 +1,16 @@
+export type Role = "USER" | "ADMIN";
+export type User = { id:string; email:string; nickname:string; role:Role; passwordHash:string; emailVerified:boolean };
+export type Template = { id:string; name:string; description:string; price:number; version:number; renderer:"built-in"|"html"; html:string; css:string; published:boolean };
+export type Photo = { id:string; displayUrl:string; originalUrl:string };
+export type Invitation = { id:string; ownerId:string; templateId:string; templateVersion:number; slug:string; status:"DRAFT"|"PUBLISHED"; title:string; partner1:string; partner2:string; eventDate:string; venue:string; address:string; greeting:string; account:string; photos:Photo[]; templateSnapshot:{renderer:Template["renderer"];html:string;css:string}; createdAt:string };
+export type GuestbookEntry = { id:string; invitationId:string; author:string; message:string; createdAt:string };
+export type Order = { id:string; userId:string; invitationId:string; amount:number; status:"PAID"|"PARTIALLY_REFUNDED"|"REFUNDED"; createdAt:string; provider:"LOCAL_MOCK"; refundedAmount:number; originalAmount?:number; referralDiscount?:number; pointsUsed?:number; policyId?:string };
+export type PaymentEvent = { id:string; orderId:string; type:string; amount:number; createdAt:string };
+export type EmailTemplate = { key:string; subject:string; html:string };
+export type Store = { users:User[]; templates:Template[]; invitations:Invitation[]; guestbook:GuestbookEntry[]; orders:Order[]; paymentEvents:PaymentEvent[]; emailTemplates:EmailTemplate[]; affiliatePolicies:AffiliatePolicy[]; pointEntries:PointEntry[]; referrals:Referral[]; redemptions:Redemption[]; notifications:Notification[]; activityEvents:ActivityEvent[] };
+export type AffiliatePolicy={id:string;version:number;discountPercent:number;rewardPercent:number;createdAt:string;active:boolean};
+export type PointEntry={id:string;userId:string;orderId?:string;redemptionId?:string;kind:'REFERRAL_REWARD'|'PURCHASE_SPEND'|'REFUND_REWARD_REVERSAL'|'REFUND_POINT_RETURN'|'GIFT_RESERVATION';amount:number;createdAt:string};
+export type Referral={id:string;ownerId:string;buyerId:string;orderId:string;policyId:string;buyerEmail:string;cashPaid:number;discount:number;reward:number;createdAt:string};
+export type Redemption={id:string;userId:string;points:number;provider:'KAKAO'|'TREMENDOUS';status:'PENDING_CONFIGURATION';createdAt:string};
+export type Notification={id:string;userId:string;message:string;readAt:string|null;createdAt:string};
+export type ActivityEvent={id:string;userId?:string;name:string;createdAt:string;metadata:Record<string,string|number>};
