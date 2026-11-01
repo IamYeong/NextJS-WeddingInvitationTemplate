@@ -1,7 +1,7 @@
 import {randomBytes,randomUUID,scryptSync,timingSafeEqual} from 'node:crypto';
 import {cookies} from 'next/headers';
 import {NextRequest,NextResponse} from 'next/server';
-import {platform,repository,photos,affiliate} from '@/presentation/platform/container';
+import {platform,repository,photos,affiliate,rsvp} from '@/presentation/platform/container';
 import {hashPassword} from '@/data/local/platform/repository/LocalPlatformRepository';
 import {notify,recordActivity} from '@/domain/affiliate/usecase/Affiliate';
 import type {User,Template} from '@/domain/platform/entity/model';
@@ -23,6 +23,7 @@ async function route(req:NextRequest, context:{params:Promise<{path:string[]}>})
   if(key==='referral-quote'){const owner=s.users.find(x=>x.id===req.nextUrl.searchParams.get('ref')&&x.id!==user?.id);const policy=owner?s.affiliatePolicies.find(p=>p.active):null;return NextResponse.json({discountPercent:policy?.discountPercent??0});}
   if(key==='affiliate')return NextResponse.json(await affiliate.dashboard(required(user)));
   if(key==='notifications'){const u=required(user);return NextResponse.json(s.notifications.filter(n=>n.userId===u.id).reverse());}
+  if(key.startsWith('rsvp/'))return NextResponse.json(await rsvp.list(required(user),path[1]));
   if(key==='templates')return NextResponse.json(s.templates.filter(t=>t.published));
   if(key==='mine'){const u=required(user);return NextResponse.json({invitations:s.invitations.filter(i=>i.ownerId===u.id),orders:s.orders.filter(o=>o.userId===u.id)});}
   if(key.startsWith('invitation/')){const i=s.invitations.find(x=>x.id===path[1]&&x.ownerId===user?.id);if(!i)throw new Error('청첩장을 찾을 수 없습니다.');return NextResponse.json(i);}
@@ -46,6 +47,8 @@ async function route(req:NextRequest, context:{params:Promise<{path:string[]}>})
  if(key==='claim-draft'){const u=required(user);const i=await platform.createInvitation(u,String(body.templateId));return NextResponse.json(await platform.saveInvitation(u,i.id,body.values??{}));}
  if(key==='publish')return NextResponse.json(await platform.publish(required(user),String(body.id)));
  if(key==='delete-photo'){const u=required(user);await repository.update(s=>{const i=s.invitations.find(x=>x.id===body.id&&x.ownerId===u.id);if(!i)throw new Error('청첩장을 찾을 수 없습니다.');i.photos=i.photos.filter(p=>p.id!==body.photoId);});return NextResponse.json({ok:true});}
+ if(key==='rsvp'){const {slug,name,side,attending,guests,meal}=body;await rsvp.submit(String(slug??''),{name:String(name??''),side,attending,guests:Number(guests),meal});return NextResponse.json({ok:true});}
+ if(key==='rsvp/delete'){await rsvp.remove(required(user),String(body.invitationId),String(body.id));return NextResponse.json({ok:true});}
  if(key==='guestbook'){const author=String(body.author??'').trim().slice(0,30),message=String(body.message??'').trim().slice(0,500);if(!author||!message)throw new Error('이름과 메시지를 입력해 주세요.');await repository.update(s=>{const i=s.invitations.find(x=>x.slug===body.slug&&x.status==='PUBLISHED');if(!i)throw new Error('청첩장을 찾을 수 없습니다.');s.guestbook.push({id:randomUUID(),invitationId:i.id,author,message,createdAt:new Date().toISOString()});});return NextResponse.json({ok:true});}
  if(key==='admin/template'){admin(user);await repository.update(s=>{const name=String(body.name??'').trim();if(!name)throw new Error('템플릿 이름을 입력해 주세요.');const previous=s.templates.find(t=>t.id===body.id);const t:Template={id:previous?.id??randomUUID(),name,description:String(body.description??''),price:Math.max(0,Math.floor(Number(body.price)||0)),version:(previous?.version??0)+1,renderer:'html',html:String(body.html??''),css:String(body.css??''),published:!!body.published};if(previous)Object.assign(previous,t);else s.templates.push(t);});return NextResponse.json({ok:true});}
  if(key==='admin/email'){admin(user);await repository.update(s=>{const t=s.emailTemplates.find(x=>x.key===body.key);if(!t)throw new Error('이메일 템플릿을 찾을 수 없습니다.');t.subject=String(body.subject??'');t.html=String(body.html??'');});return NextResponse.json({ok:true});}

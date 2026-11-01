@@ -90,6 +90,7 @@ model Invitation {
   assets InvitationAsset[]
   guestbook GuestbookEntry[]
   orders Order[]
+  rsvps RsvpResponse[]
 }
 model InvitationAsset {
   id String @id @default(cuid())
@@ -229,4 +230,17 @@ model ActivityLog {
   name String
   metadata Json
   createdAt DateTime @default(now())
+}
+
+model RsvpResponse {
+  id String @id @default(cuid())
+  invitationId String
+  invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  name String
+  side String
+  attending Boolean
+  guests Int
+  meal Boolean
+  createdAt DateTime @default(now())
+  @@index([invitationId, createdAt])
 }
