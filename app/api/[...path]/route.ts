@@ -40,6 +40,7 @@ async function route(req:NextRequest, context:{params:Promise<{path:string[]}>})
  if(key==='save'){return NextResponse.json(await platform.saveInvitation(required(user),String(body.id),body));}
  if(key==='purchase')return NextResponse.json(await platform.purchase(required(user),String(body.id),String(body.referrerId??''),Number(body.points??0)));
  if(key==='affiliate/redeem')return NextResponse.json(await affiliate.redeem(required(user),Number(body.points),body.provider));
+ if(key==='affiliate/cancel')return NextResponse.json(await affiliate.cancelRedemption(required(user),String(body.id)));
  if(key==='notifications/read'){await affiliate.markRead(required(user),String(body.id));return NextResponse.json({ok:true});}
  if(key==='admin/notify'){const actor=admin(user);const message=String(body.message??'').trim().slice(0,500);if(!message)throw new Error('알림 내용을 입력해 주세요.');await repository.update(s=>{const recipients=body.userId?s.users.filter(x=>x.id===body.userId):s.users;if(!recipients.length)throw new Error('수신자를 찾을 수 없습니다.');for(const recipient of recipients)notify(s,recipient.id,message);recordActivity(s,'admin_notification',actor.id,{recipients:recipients.length});});return NextResponse.json({ok:true});}
  if(key==='admin/policy'){admin(user);return NextResponse.json(await affiliate.createPolicy(Number(body.discountPercent),Number(body.rewardPercent)));}
