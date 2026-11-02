@@ -1,0 +1,78 @@
+name: CI and deployment
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tirani-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://tirani:tirani@127.0.0.1:5432/tirani?schema=public
+      DIRECT_URL: postgresql://tirani:tirani@127.0.0.1:5432/tirani?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # A lockfile cannot be generated until the package registry is reachable.
+      - run: npm install --no-audit --no-fund
+      - run: npx prisma validate
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Upload browser captures and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-results-${{ github.run_id }}
+          path: |
+            artifacts/screenshots/
+            artifacts/playwright-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  deploy:
+    name: Vercel and database deployment
+    needs: verify
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && vars.TIRANI_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+    concurrency:
+      group: tirani-deploy-${{ github.ref_name }}
+      cancel-in-progress: false
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/assert-deploy-ready.mjs
+      - run: npm install --no-audit --no-fund
+      - name: Apply committed Prisma migrations
+        run: npm run db:deploy
+      - name: Deploy main to Vercel production
+        if: github.ref == 'refs/heads/main'
+        run: npx vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN"
+      - name: Deploy develop to Vercel preview
+        if: github.ref == 'refs/heads/develop'
+        run: npx vercel@latest deploy --yes --token "$VERCEL_TOKEN"
